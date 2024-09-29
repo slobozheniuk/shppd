@@ -1,1 +1,6 @@
 http://127.0.0.1:5000/zara/item?url=https://www.zara.com/share/straight-blazer-zw-collection-p08771510.html?v1=402153953&v2=2420942&utm_campaign=productShare&utm_medium=mobile_sharing_iOS&utm_source=red_social_movil
+
+###
+http://127.0.0.1:5000/follow/123
+###
+POST http://127.0.0.1:5000/follow/123?url=https://www.zara.com/share/straight-blazer-zw-collection-p08771510.html?v1=402153953&v2=2420942&utm_campaign=productShare&utm_medium=mobile_sharing_iOS&utm_source=red_social_movil

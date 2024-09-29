@@ -1,5 +1,3 @@
-import re
-
 def parse_zara_url(url: str):
     product_end = url.find('.html')
     product_begin = url.rfind('/', 0, product_end) + 1
@@ -13,3 +11,6 @@ def parse_zara_url(url: str):
         'product': product,
         'v1': v1
     }
+
+def map_sizes_to_bools(sizes_dict, tuple_array):
+    return {sizes_dict[chat_id]: is_true for chat_id, is_true in tuple_array if chat_id in sizes_dict}

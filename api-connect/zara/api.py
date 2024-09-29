@@ -2,17 +2,18 @@ import json
 import sys
 from typing import Any, List, Tuple
 import requests
-from product import Product
+from zara.product import Product
 from bs4 import BeautifulSoup
 
-def get_product(url: str) -> Product:
+def get_product(product: str, v1: str) -> Product:
+    url = f'https://www.zara.com/nl/en/{product}.html?v1={v1}'
     product_json = get_product_json(url)
     name: str = product_json['product']['name']
     productId: int = product_json['product']['detail']['colors'][0]['productId']
     sizes: dict[str, int] = {}
     for size in product_json['product']['detail']['colors'][0]['sizes']:
         sizes[size['sku']] = size['name']
-    return Product(url, productId, name, sizes)
+    return Product(url, productId, name, sizes, v1)
 
 def get_product_json(url: str) -> Any:
     headers = {
@@ -89,7 +90,7 @@ if __name__ == "__main__":
     stock = get_stock(product.productId)
     print(stock)
 
-class Product:
+""" class Product:
     def __init__(self, url: str, productId: int, name: str, sizes: dict[int, str]):
         self.url = url
         self.productId = productId
@@ -97,4 +98,4 @@ class Product:
         self.sizes = sizes
 
     def __repr__(self):
-        return f"Product(name={self.name}, url={self.url}, productId = {self.productId}, size={self.sizes})"    
+        return f"Product(name={self.name}, url={self.url}, productId = {self.productId}, size={self.sizes})"     """
