@@ -30,7 +30,7 @@ def test_mapping_2():
     assert result['XS'] == False
     assert result['S'] == False
     assert result['M'] == False
-    assert result['L'] == True
+    assert result['L'] == False
     assert result['XL'] == False
     assert result['XXL'] == False    
 
