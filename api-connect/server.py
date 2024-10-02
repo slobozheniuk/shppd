@@ -5,7 +5,7 @@ from persist import Persist
 from tracker import Tracker
 
 persist = Persist()
-tracker = Tracker()
+tracker = Tracker(persist)
 app = Flask(__name__)
 
 @app.get('/zara/item')
@@ -43,11 +43,11 @@ def follow_item(chat_id):
     parsed = parse_zara_url(url)
     url = f'https://www.zara.com/nl/en/{parsed['product']}.html?v1={parsed['v1']}'
     persist.add_item(chat_id, url)
-    tracker.subscribe(url)
+    tracker.subscribe(chat_id, url)
     return 'Success', 200
 
 
 
 # Run the app if the script is executed
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(debug=True, host='0.0.0.0', port=5508)

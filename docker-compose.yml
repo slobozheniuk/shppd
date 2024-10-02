@@ -1,0 +1,42 @@
+services:
+  db:
+    image: postgres
+    container_name: postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    networks:
+      - shppd
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U myuser -d mydb"]
+      interval: 10s
+      timeout: 5s
+      retries: 5  
+
+  bot:
+    image: shppd-telegram-bot
+    container_name: telegram-bot
+    environment:
+      - TELEGRAM_TOKEN=
+    depends_on:
+      - api
+    networks:
+      - shppd
+
+  api:
+    image: shppd-api-connect
+    container_name: api-connect
+    environment:
+      - DATABASE_URL=postgresql://postgres:postgres@db:5432/mydatabase
+    depends_on:
+      - db
+    networks:
+      - shppd  
+
+volumes:
+  pgdata:
+
+networks:
+  shppd:  

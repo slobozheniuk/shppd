@@ -1,0 +1,7 @@
+###
+POST http://telegram-bot:3000/event HTTP/1.1
+content-type: application/json
+
+{ 
+    "message": "Hello, users!" 
+}
