@@ -2,6 +2,10 @@ import TelegramBot from 'node-telegram-bot-api';
 import express, { Request, Response } from 'express';
 import axios from 'axios';
 
+if (process.env.NODE_ENV !== 'production') {
+    require('dotenv').config();
+}
+
 const token = process.env.TELEGRAM_TOKEN;
 const bot = new TelegramBot(token, { polling: true });
 
