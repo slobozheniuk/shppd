@@ -9,9 +9,12 @@ const bot = new TelegramBot(token, { polling: true });
 bot.onText(/\/add (.+)/, async (msg, match) => {
     const chatId = msg.chat.id;
     const url = match[1];
+    const data = {
+        url: url
+    };
     console.log(`Adding:\n\tChatID: ${chatId}\n\tURL: ${url}`);
     try {
-        const response = await axios.post(`http://api-connect:5508/follow/${chatId}?url=${url}`);
+        const response = await axios.post(`http://api-connect:5508/follow/${chatId}`, data);
         await bot.sendMessage(chatId, response.statusText);
     } catch (error) {
         await bot.sendMessage(chatId, error);

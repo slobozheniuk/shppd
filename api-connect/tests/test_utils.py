@@ -10,6 +10,18 @@ def test_parsing_valid_zara_urls(url, product, v1):
     assert value['product'] == product
     assert value['v1'] == v1
 
+def test_parsing_zara_scarf():
+    url = 'https://www.zara.com/share/100-cashmere-knit-scarf-p03887201.html?v1=383157376&utm_campaign=productShare&utm_medium=mobile_sharing_iOS&utm_source=red_social_movil'
+    value = parse_zara_url(url)
+    assert value['product'] == '100-cashmere-knit-scarf-p03887201'
+    assert value['v1'] == '383157376'
+
+def test_parsing_zara_scarf_short():
+    url = 'https://www.zara.com/share/100-cashmere-knit-scarf-p03887201.html?v1=383157376'
+    value = parse_zara_url(url)
+    assert value['product'] == '100-cashmere-knit-scarf-p03887201'
+    assert value['v1'] == '383157376'    
+
 def test_mapping_1():
     sizes_dict = {383659357: 'XS', 383659358: 'S', 383659353: 'M', 383659354: 'L', 383659355: 'XL', 383659356: 'XXL'}
     tuple_array = [(383659358, True), (383659356, True), (383659357, True), (383659354, True), (383659355, True), (383659353, True)]

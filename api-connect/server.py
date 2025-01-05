@@ -3,6 +3,9 @@ from zara.util import parse_zara_url, map_sizes_to_bools
 from zara.api import get_product, get_stock
 from persist import Persist
 from tracker import Tracker
+import logging
+
+logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
 
 persist = Persist()
 tracker = Tracker(persist)
@@ -35,13 +38,15 @@ def get_followed_items(chat_id):
 
 @app.post('/follow/<chat_id>')
 def follow_item(chat_id):
-    url = request.args.get('url')
+    url = request.json['url']
+    logging.info(f'Adding url: {url}')
 
     if not url:
         return 'URL parameter is missing', 400
     
     parsed = parse_zara_url(url)
     url = f'https://www.zara.com/nl/en/{parsed['product']}.html?v1={parsed['v1']}'
+    logging.info(f'Added: {url}')
     persist.add_item(chat_id, url)
     tracker.subscribe(chat_id, url)
     return 'Success', 200
