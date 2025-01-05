@@ -43,12 +43,12 @@ class Tracker:
             logging.warning('No product on url ' + url)
             response: Response = requests.post(
                 url=baseUrl, 
-                json={"userId": chat_id, "message": "This product does not exist. TODO: Use check on tgbot"},
+                json={"userId": chat_id, "message": f'This product does not exist. TODO: Use check on tgbot\n{response.text}'},
                 headers={"Content-Type": "application/json"})
             logging.info(response.status_code)
             logging.info(response.text)
-            self.persist.remove_product(chat_id, url)    
-            self.scheduler.remove_job(f'get_zara_{url}')
+            #self.persist.remove_product(chat_id, url)    
+            #self.scheduler.remove_job(f'get_zara_{url}')
 
                 
     def subscribe(self, chat_id, url):

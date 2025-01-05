@@ -15,7 +15,9 @@ bot.onText(/\/add (.+)/, async (msg, match) => {
     console.log(`Adding:\n\tChatID: ${chatId}\n\tURL: ${url}`);
     try {
         const response = await axios.post(`http://api-connect:5508/follow/${chatId}`, data);
-        await bot.sendMessage(chatId, response.statusText);
+        console.log("Post received")
+        console.log(response.data)
+        await bot.sendMessage(chatId, JSON.stringify(response.data));
     } catch (error) {
         await bot.sendMessage(chatId, error);
     }

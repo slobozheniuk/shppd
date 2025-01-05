@@ -46,12 +46,16 @@ def follow_item(chat_id):
     
     parsed = parse_zara_url(url)
     url = f'https://www.zara.com/nl/en/{parsed['product']}.html?v1={parsed['v1']}'
-    logging.info(f'Added: {url}')
-    persist.add_item(chat_id, url)
-    tracker.subscribe(chat_id, url)
-    return 'Success', 200
 
-
+    try:
+        get_product(parsed['product'], parsed['v1'])
+        logging.info(f'Subscribing to {url}')
+        persist.add_item(chat_id, url)
+        tracker.subscribe(chat_id, url)
+        return 'Success', 200
+    except:
+        logging.error(f'Item not found with URL {url}')
+        return 'Not found', 200
 
 # Run the app if the script is executed
 if __name__ == '__main__':

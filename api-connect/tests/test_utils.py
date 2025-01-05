@@ -20,7 +20,13 @@ def test_parsing_zara_scarf_short():
     url = 'https://www.zara.com/share/100-cashmere-knit-scarf-p03887201.html?v1=383157376'
     value = parse_zara_url(url)
     assert value['product'] == '100-cashmere-knit-scarf-p03887201'
-    assert value['v1'] == '383157376'    
+    assert value['v1'] == '383157376'
+
+def test_invalid_url():
+    url = 'https://www.zara.com/share/100-cashmere-knit-sf-p03801.html?v1=387376&utm_campaign=productShare&utm_medium=mobile_sharing_iOS&utm_source=red_social_movil'
+    value = parse_zara_url(url)
+    assert value['product'] == '100-cashmere-knit-sf-p03801'
+    assert value['v1'] == '387376'
 
 def test_mapping_1():
     sizes_dict = {383659357: 'XS', 383659358: 'S', 383659353: 'M', 383659354: 'L', 383659355: 'XL', 383659356: 'XXL'}
