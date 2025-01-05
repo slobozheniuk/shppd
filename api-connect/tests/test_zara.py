@@ -7,7 +7,7 @@ def test_get_product():
     print(result)
     assert result.url == f'https://www.zara.com/nl/en/{product}.html?v1={v1}'
     assert result.name == 'STRAIGHT BLAZER ZW COLLECTION'
-    assert result.productId == 383695854
+    assert result.productId == 402153953
     assert result.v1 == v1
     assert 'XS' in result.sizes.values()
     assert 'S' in result.sizes.values()
