@@ -45,7 +45,7 @@ def follow_item(chat_id):
         return 'URL parameter is missing', 400
     
     parsed = parse_zara_url(url)
-    url = f'https://www.zara.com/nl/en/{parsed['product']}.html?v1={parsed['v1']}'
+    url = f"https://www.zara.com/nl/en/{parsed['product']}.html?v1={parsed['v1']}"
 
     try:
         get_product(parsed['product'], parsed['v1'])

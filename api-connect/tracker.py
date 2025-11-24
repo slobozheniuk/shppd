@@ -32,7 +32,7 @@ class Tracker:
             if (any(sizes.values())):
                 message = f'{url}\n{product.name}\n'
                 for size in sizes.keys():
-                    message += f'{size}: {'In stock' if sizes[size] else 'Not in stock'}\n'
+                    message += f"{size}: {'In stock' if sizes[size] else 'Not in stock'}\n"
                 response: Response = requests.post(
                 url=baseUrl, 
                 json={"userId": chat_id, "message": message},
