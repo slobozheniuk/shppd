@@ -1,6 +1,6 @@
 import logging
 import os
-from typing import List, Optional
+from typing import Dict, List, Optional
 
 import psycopg2
 
@@ -9,8 +9,8 @@ logger = logging.getLogger(__name__)
 
 class Persist:
     """
-    Simple Postgres-backed persistence for chat subscriptions.
-    Stores chat_id, url (unique per chat), and timestamp for future expansion.
+    Postgres-backed persistence for chat subscriptions.
+    Stores users, products, and subscriptions (many-to-many).
     """
 
     def __init__(self, database_url: Optional[str] = None):
@@ -28,46 +28,128 @@ class Persist:
             with conn.cursor() as cur:
                 cur.execute(
                     """
-                    CREATE TABLE IF NOT EXISTS subscriptions (
-                        id SERIAL PRIMARY KEY,
-                        chat_id TEXT NOT NULL,
-                        url TEXT NOT NULL,
+                    CREATE TABLE IF NOT EXISTS users (
+                        chat_id TEXT PRIMARY KEY,
                         created_at TIMESTAMPTZ DEFAULT NOW()
                     );
                     """
                 )
                 cur.execute(
                     """
-                    CREATE UNIQUE INDEX IF NOT EXISTS idx_subscriptions_chat_url
-                        ON subscriptions (chat_id, url);
+                    CREATE TABLE IF NOT EXISTS products (
+                        id SERIAL PRIMARY KEY,
+                        product_id TEXT NOT NULL,
+                        name TEXT NOT NULL,
+                        url TEXT NOT NULL,
+                        v1 TEXT NOT NULL,
+                        created_at TIMESTAMPTZ DEFAULT NOW(),
+                        UNIQUE(product_id, name, v1)
+                    );
+                    """
+                )
+                cur.execute(
+                    """
+                    CREATE TABLE IF NOT EXISTS subscriptions (
+                        chat_id TEXT NOT NULL REFERENCES users(chat_id) ON DELETE CASCADE,
+                        product_id INTEGER NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+                        created_at TIMESTAMPTZ DEFAULT NOW(),
+                        UNIQUE(chat_id, product_id)
+                    );
                     """
                 )
             conn.commit()
-        logger.info("Ensured subscriptions table exists")
+        logger.info("Ensured users, products, subscriptions tables exist")
 
-    def add_item(self, chat_id: str, url: str):
+    def _ensure_user(self, chat_id: str):
         with self._get_conn() as conn:
             with conn.cursor() as cur:
                 cur.execute(
                     """
-                    INSERT INTO subscriptions (chat_id, url)
-                    VALUES (%s, %s)
-                    ON CONFLICT (chat_id, url) DO NOTHING;
+                    INSERT INTO users (chat_id)
+                    VALUES (%s)
+                    ON CONFLICT (chat_id) DO NOTHING;
                     """,
-                    (chat_id, url),
+                    (chat_id,),
                 )
             conn.commit()
-        logger.info("Stored subscription for chat %s: %s", chat_id, url)
+
+    def _ensure_product(self, product: Dict[str, str]) -> int:
+        with self._get_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    INSERT INTO products (product_id, name, url, v1)
+                    VALUES (%s, %s, %s, %s)
+                    ON CONFLICT (product_id, name, v1)
+                    DO UPDATE SET url = EXCLUDED.url
+                    RETURNING id;
+                    """,
+                    (
+                        product["product_id"],
+                        product["name"],
+                        product["url"],
+                        product["v1"],
+                    ),
+                )
+                product_db_id = cur.fetchone()[0]
+            conn.commit()
+        return product_db_id
+
+    def add_subscription(self, chat_id: str, product) -> bool:
+        """
+        Ensure a user and product exist, then link them.
+        Returns True if a new subscription was created, False if it already existed.
+        """
+        product_dict = {
+            "product_id": getattr(product, "productId"),
+            "name": getattr(product, "name"),
+            "url": getattr(product, "url"),
+            "v1": getattr(product, "v1"),
+        }
+        if not all(product_dict.values()):
+            raise ValueError("Product must include productId, name, url, and v1")
+
+        self._ensure_user(chat_id)
+        product_db_id = self._ensure_product(product_dict)
+
+        with self._get_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    INSERT INTO subscriptions (chat_id, product_id)
+                    VALUES (%s, %s)
+                    ON CONFLICT (chat_id, product_id) DO NOTHING;
+                    """,
+                    (chat_id, product_db_id),
+                )
+                created = cur.rowcount > 0
+            conn.commit()
+
+        logger.info(
+            "Stored subscription chat_id=%s product_id=%s created=%s",
+            chat_id,
+            product_dict["product_id"],
+            created,
+        )
+        return created
 
     def remove_product(self, chat_id: str, url: str):
+        """
+        Remove a subscription for the given chat_id and product URL.
+        """
         with self._get_conn() as conn:
             with conn.cursor() as cur:
                 cur.execute(
-                    "DELETE FROM subscriptions WHERE chat_id = %s AND url = %s",
+                    """
+                    DELETE FROM subscriptions s
+                    USING products p
+                    WHERE s.chat_id = %s AND s.product_id = p.id AND p.url = %s;
+                    """,
                     (chat_id, url),
                 )
                 removed = cur.rowcount
             conn.commit()
+
         if removed:
             logger.info("Removed subscription for chat %s: %s", chat_id, url)
         else:
@@ -77,22 +159,38 @@ class Persist:
         with self._get_conn() as conn:
             with conn.cursor() as cur:
                 cur.execute(
-                    "SELECT 1 FROM subscriptions WHERE chat_id = %s LIMIT 1",
+                    "SELECT 1 FROM users WHERE chat_id = %s LIMIT 1",
                     (chat_id,),
                 )
                 return cur.fetchone() is not None
 
-    def get_urls_by_chat_id(self, chat_id: str) -> List[str]:
+    def get_products_by_chat_id(self, chat_id: str) -> List[Dict[str, str]]:
         with self._get_conn() as conn:
             with conn.cursor() as cur:
                 cur.execute(
                     """
-                    SELECT url
-                    FROM subscriptions
-                    WHERE chat_id = %s
-                    ORDER BY created_at ASC;
+                    SELECT p.product_id, p.name, p.url, p.v1
+                    FROM subscriptions s
+                    JOIN products p ON s.product_id = p.id
+                    WHERE s.chat_id = %s
+                    ORDER BY s.created_at ASC;
                     """,
                     (chat_id,),
                 )
                 rows = cur.fetchall()
-        return [row[0] for row in rows]
+
+        return [
+            {
+                "productId": row[0],
+                "name": row[1],
+                "url": row[2],
+                "v1": row[3],
+            }
+            for row in rows
+        ]
+
+    def get_urls_by_chat_id(self, chat_id: str) -> List[str]:
+        """
+        Convenience helper for code paths that only need URLs.
+        """
+        return [row["url"] for row in self.get_products_by_chat_id(chat_id)]

@@ -34,7 +34,7 @@ def get_zara_item_data():
 def get_followed_items(chat_id):
     if not persist.user_exist(chat_id):
         return f'Chat ID {chat_id} is not saved in DB'
-    return persist.get_urls_by_chat_id(chat_id)
+    return persist.get_products_by_chat_id(chat_id)
 
 @app.post('/follow/<chat_id>')
 def follow_item(chat_id):
@@ -48,12 +48,17 @@ def follow_item(chat_id):
     url = f"https://www.zara.com/nl/en/{parsed['product']}.html?v1={parsed['v1']}"
 
     try:
-        get_product(parsed['product'], parsed['v1'])
+        product = get_product(parsed['product'], parsed['v1'])
+        created = persist.add_subscription(chat_id, product)
+
+        if not created:
+            logging.info("Chat %s already follows product %s", chat_id, product.productId)
+            return 'Already subscribed', 200
+
         logging.info(f'Subscribing to {url}')
-        persist.add_item(chat_id, url)
-        tracker.subscribe(chat_id, url)
+        tracker.subscribe(chat_id, product.url)
         return 'Success', 200
-    except:
+    except Exception:
         logging.error(f'Item not found with URL {url}')
         return 'Not found', 200
 

@@ -1,3 +1,5 @@
+name: shppd
+
 services:
   db:
     image: postgres:17
