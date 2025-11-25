@@ -22,7 +22,7 @@ services:
     image: shppd-telegram-bot
     container_name: telegram-bot
     environment:
-      - TELEGRAM_TOKEN=7327890261:AAHUOP8nG64IakrHdhmbZELMgIN4_Lbuqqw
+      - TELEGRAM_TOKEN=
     depends_on:
       - api
     networks:
