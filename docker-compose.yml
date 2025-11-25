@@ -7,12 +7,13 @@ services:
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: mydatabase
     volumes:
       - pgdata:/var/lib/postgresql/data
     networks:
       - shppd
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U myuser -d mydb"]
+      test: ["CMD-SHELL", "pg_isready -U postgres -d mydatabase"]
       interval: 10s
       timeout: 5s
       retries: 5  
@@ -21,7 +22,7 @@ services:
     image: shppd-telegram-bot
     container_name: telegram-bot
     environment:
-      - TELEGRAM_TOKEN=
+      - TELEGRAM_TOKEN=7327890261:AAHUOP8nG64IakrHdhmbZELMgIN4_Lbuqqw
     depends_on:
       - api
     networks:
@@ -33,7 +34,8 @@ services:
     environment:
       - DATABASE_URL=postgresql://postgres:postgres@db:5432/mydatabase
     depends_on:
-      - db
+      db:
+        condition: service_healthy
     networks:
       - shppd  
 
