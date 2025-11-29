@@ -39,6 +39,7 @@ def get_followed_items(chat_id):
 @app.post('/follow/<chat_id>')
 def follow_item(chat_id):
     url = request.json['url']
+    selected_sizes = request.json.get('sizes')
     logging.info(f'Adding url: {url}')
 
     if not url:
@@ -49,14 +50,35 @@ def follow_item(chat_id):
 
     try:
         product = get_product(parsed['product'], parsed['v1'])
-        created = persist.add_subscription(chat_id, product)
+        size_names = list(dict.fromkeys(product.sizes.values()))
+        requires_selection = len(size_names) > 1 and not selected_sizes
 
-        if not created:
-            logging.info("Chat %s already follows product %s", chat_id, product.productId)
+        created, updated_sizes = persist.add_subscription(chat_id, product, selected_sizes=selected_sizes)
+
+        if requires_selection:
+            logging.info("Chat %s needs to pick sizes for %s", chat_id, product.productId)
+            return {
+                "requires_size_selection": True,
+                "sizes": size_names,
+                "product": {
+                    "productId": product.productId,
+                    "name": product.name,
+                    "url": product.url,
+                    "v1": product.v1
+                }
+            }, 200
+
+        # If no selection required, default to all sizes for single-size products
+        if selected_sizes is not None and len(selected_sizes) == 0:
+            return {"requires_size_selection": True, "sizes": size_names, "product": {"productId": product.productId, "name": product.name, "url": product.url, "v1": product.v1}}, 200
+        sizes_to_track = size_names if not selected_sizes else selected_sizes
+
+        if not created and not updated_sizes and selected_sizes:
+            logging.info("Chat %s already follows product %s with same sizes", chat_id, product.productId)
             return 'Already subscribed', 200
 
-        logging.info(f'Subscribing to {url}')
-        tracker.subscribe(chat_id, product.url)
+        logging.info(f'Subscribing to {url} for sizes {sizes_to_track}')
+        tracker.subscribe(chat_id, product.url, sizes_to_track)
         return 'Success', 200
     except Exception:
         logging.error(f'Item not found with URL {url}')

@@ -5,9 +5,9 @@ services:
     image: postgres:17
     container_name: postgres
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: mydatabase
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
     volumes:
       - pgdata:/var/lib/postgresql/data
     networks:
@@ -22,7 +22,7 @@ services:
     image: shppd-telegram-bot
     container_name: telegram-bot
     environment:
-      - TELEGRAM_TOKEN=
+      - TELEGRAM_TOKEN=${TELEGRAM_TOKEN}
     depends_on:
       - api
     networks:
@@ -32,7 +32,7 @@ services:
     image: shppd-api-connect
     container_name: api-connect
     environment:
-      - DATABASE_URL=postgresql://postgres:postgres@db:5432/mydatabase
+      - DATABASE_URL=${DATABASE_URL}
     depends_on:
       db:
         condition: service_healthy

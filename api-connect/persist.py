@@ -1,6 +1,6 @@
 import logging
 import os
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 
 import psycopg2
 
@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 class Persist:
     """
     Postgres-backed persistence for chat subscriptions.
-    Stores users, products, and subscriptions (many-to-many).
+    Stores users, products, and subscriptions (many-to-many) with optional size selections.
     """
 
     def __init__(self, database_url: Optional[str] = None):
@@ -52,6 +52,7 @@ class Persist:
                     CREATE TABLE IF NOT EXISTS subscriptions (
                         chat_id TEXT NOT NULL REFERENCES users(chat_id) ON DELETE CASCADE,
                         product_id INTEGER NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+                        selected_sizes TEXT[],
                         created_at TIMESTAMPTZ DEFAULT NOW(),
                         UNIQUE(chat_id, product_id)
                     );
@@ -95,10 +96,11 @@ class Persist:
             conn.commit()
         return product_db_id
 
-    def add_subscription(self, chat_id: str, product) -> bool:
+    def add_subscription(self, chat_id: str, product, selected_sizes: Optional[List[str]] = None) -> Tuple[bool, bool]:
         """
         Ensure a user and product exist, then link them.
-        Returns True if a new subscription was created, False if it already existed.
+        Returns (created, updated_sizes) where created is True if a new link was created,
+        and updated_sizes is True if an existing subscription had its sizes updated.
         """
         product_dict = {
             "product_id": getattr(product, "productId"),
@@ -112,26 +114,41 @@ class Persist:
         self._ensure_user(chat_id)
         product_db_id = self._ensure_product(product_dict)
 
+        created = False
+        updated_sizes = False
+
         with self._get_conn() as conn:
             with conn.cursor() as cur:
                 cur.execute(
                     """
-                    INSERT INTO subscriptions (chat_id, product_id)
-                    VALUES (%s, %s)
+                    INSERT INTO subscriptions (chat_id, product_id, selected_sizes)
+                    VALUES (%s, %s, %s)
                     ON CONFLICT (chat_id, product_id) DO NOTHING;
                     """,
-                    (chat_id, product_db_id),
+                    (chat_id, product_db_id, selected_sizes),
                 )
                 created = cur.rowcount > 0
+
+                if (not created) and selected_sizes is not None:
+                    cur.execute(
+                        """
+                        UPDATE subscriptions
+                        SET selected_sizes = %s
+                        WHERE chat_id = %s AND product_id = %s;
+                        """,
+                        (selected_sizes, chat_id, product_db_id),
+                    )
+                    updated_sizes = cur.rowcount > 0
             conn.commit()
 
         logger.info(
-            "Stored subscription chat_id=%s product_id=%s created=%s",
+            "Stored subscription chat_id=%s product_id=%s created=%s updated_sizes=%s",
             chat_id,
             product_dict["product_id"],
             created,
+            updated_sizes,
         )
-        return created
+        return created, updated_sizes
 
     def remove_product(self, chat_id: str, url: str):
         """
@@ -169,7 +186,7 @@ class Persist:
             with conn.cursor() as cur:
                 cur.execute(
                     """
-                    SELECT p.product_id, p.name, p.url, p.v1
+                    SELECT p.product_id, p.name, p.url, p.v1, s.selected_sizes
                     FROM subscriptions s
                     JOIN products p ON s.product_id = p.id
                     WHERE s.chat_id = %s
@@ -185,6 +202,7 @@ class Persist:
                 "name": row[1],
                 "url": row[2],
                 "v1": row[3],
+                "selectedSizes": row[4] or [],
             }
             for row in rows
         ]
@@ -194,3 +212,20 @@ class Persist:
         Convenience helper for code paths that only need URLs.
         """
         return [row["url"] for row in self.get_products_by_chat_id(chat_id)]
+
+    def get_selected_sizes(self, chat_id: str, url: str) -> Optional[List[str]]:
+        with self._get_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT s.selected_sizes
+                    FROM subscriptions s
+                    JOIN products p ON s.product_id = p.id
+                    WHERE s.chat_id = %s AND p.url = %s;
+                    """,
+                    (chat_id, url),
+                )
+                row = cur.fetchone()
+        if not row:
+            return None
+        return row[0] or []

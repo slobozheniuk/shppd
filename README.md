@@ -19,7 +19,7 @@ This repository contains a two-service system that lets Telegram users follow Za
    - `POST /follow/<chat_id>`: validates a product URL, stores it, and schedules stock polling.
 3. **Zara Scraper Layer** – `zara/api.py` fetches the Zara product page, extracts JSON payloads via BeautifulSoup, and calls the stock availability endpoint. `zara/util.py` parses share links and maps stock tuples to friendly size labels.
 4. **Tracker & Notifications** – `tracker.py` schedules APScheduler jobs (default 5-second interval) to call Zara APIs. When any size is back in stock, it formats a message and POSTs to the bot's `POST /event` endpoint (`http://telegram-bot:3000/event`), which relays the alert to the requesting user.
-5. **Persistence** – A Postgres-backed `Persist` stores users, products, and subscriptions (many-to-many). Products are keyed by `(productId, name, v1)` and reused across subscribers.
+5. **Persistence** – A Postgres-backed `Persist` stores users, products, and subscriptions (many-to-many). Products are keyed by `(productId, name, v1)` and reused across subscribers. Subscriptions can record selected sizes so the bot can prompt users with a keyboard when multiple sizes exist.
 
 ## Environment Variables
 

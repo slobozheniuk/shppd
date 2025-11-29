@@ -52,10 +52,21 @@ class FakeCursor:
             return
 
         if normalized.startswith("insert into subscriptions"):
-            chat_id, product_db_id = params
-            if (chat_id, product_db_id) not in self.store["subscriptions"]:
-                self.store["subscriptions"].append((chat_id, product_db_id))
+            chat_id, product_db_id, selected_sizes = params
+            sub = next((s for s in self.store["subscriptions"] if s["chat_id"] == chat_id and s["product_id"] == product_db_id), None)
+            if not sub:
+                self.store["subscriptions"].append(
+                    {"chat_id": chat_id, "product_id": product_db_id, "selected_sizes": selected_sizes}
+                )
                 self.rowcount = 1
+            return
+
+        if normalized.startswith("update subscriptions"):
+            selected_sizes, chat_id, product_db_id = params
+            for sub in self.store["subscriptions"]:
+                if sub["chat_id"] == chat_id and sub["product_id"] == product_db_id:
+                    sub["selected_sizes"] = selected_sizes
+                    self.rowcount = 1
             return
 
         if normalized.startswith("delete from subscriptions"):
@@ -65,7 +76,7 @@ class FakeCursor:
                 return
             before = len(self.store["subscriptions"])
             self.store["subscriptions"] = [
-                (cid, pid) for (cid, pid) in self.store["subscriptions"] if not (cid == chat_id and pid == product["id"])
+                s for s in self.store["subscriptions"] if not (s["chat_id"] == chat_id and s["product_id"] == product["id"])
             ]
             self.rowcount = before - len(self.store["subscriptions"])
             return
@@ -80,13 +91,24 @@ class FakeCursor:
         if normalized.startswith("select p.product_id"):
             chat_id = params[0]
             products = []
-            for cid, pid in self.store["subscriptions"]:
-                if cid == chat_id:
-                    product = next((p for p in self.store["products"] if p["id"] == pid), None)
+            for sub in self.store["subscriptions"]:
+                if sub["chat_id"] == chat_id:
+                    product = next((p for p in self.store["products"] if p["id"] == sub["product_id"]), None)
                     if product:
-                        products.append((product["product_id"], product["name"], product["url"], product["v1"]))
+                        products.append((product["product_id"], product["name"], product["url"], product["v1"], sub["selected_sizes"]))
             self.results = products
             self.rowcount = len(self.results)
+            return
+
+        if normalized.startswith("select s.selected_sizes"):
+            chat_id, url = params
+            product = next((p for p in self.store["products"] if p["url"] == url), None)
+            if not product:
+                return
+            sub = next((s for s in self.store["subscriptions"] if s["chat_id"] == chat_id and s["product_id"] == product["id"]), None)
+            if sub:
+                self.results = [(sub["selected_sizes"],)]
+                self.rowcount = 1
             return
 
     def fetchone(self):
@@ -135,29 +157,26 @@ def test_add_and_get_products(monkeypatch):
     p = persist.Persist(database_url="postgresql://fake")
 
     prod = make_product("p1", "Product 1", "url1", "v1a")
-    created = p.add_subscription("chat1", prod)
+    created, updated = p.add_subscription("chat1", prod, selected_sizes=["S", "M"])
 
-    assert created is True
+    assert created is True and updated is False
     assert store["users"] == {"chat1"}
     assert len(store["products"]) == 1
     assert p.get_products_by_chat_id("chat1") == [
-        {"productId": "p1", "name": "Product 1", "url": "url1", "v1": "v1a"}
+        {"productId": "p1", "name": "Product 1", "url": "url1", "v1": "v1a", "selectedSizes": ["S", "M"]}
     ]
 
 
-def test_dedup_same_product_for_user(monkeypatch):
+def test_dedup_and_update_sizes(monkeypatch):
     store = setup_fake_db(monkeypatch)
     p = persist.Persist(database_url="postgresql://fake")
 
     prod = make_product("p1", "Product 1", "url1", "v1a")
-    p.add_subscription("chat1", prod)
-    created_again = p.add_subscription("chat1", prod)
+    p.add_subscription("chat1", prod, selected_sizes=["S"])
+    created_again, updated_again = p.add_subscription("chat1", prod, selected_sizes=["S", "M"])
 
-    assert created_again is False
-    assert len(store["subscriptions"]) == 1
-    assert p.get_products_by_chat_id("chat1") == [
-        {"productId": "p1", "name": "Product 1", "url": "url1", "v1": "v1a"}
-    ]
+    assert created_again is False and updated_again is True
+    assert p.get_products_by_chat_id("chat1")[0]["selectedSizes"] == ["S", "M"]
 
 
 def test_multiple_users_share_product(monkeypatch):
@@ -165,14 +184,12 @@ def test_multiple_users_share_product(monkeypatch):
     p = persist.Persist(database_url="postgresql://fake")
 
     prod = make_product("p1", "Product 1", "url1", "v1a")
-    p.add_subscription("chat1", prod)
-    p.add_subscription("chat2", prod)
+    p.add_subscription("chat1", prod, selected_sizes=["S"])
+    p.add_subscription("chat2", prod, selected_sizes=["M"])
 
     assert len(store["products"]) == 1  # reused product row
     assert len(store["subscriptions"]) == 2
-    assert p.get_products_by_chat_id("chat2") == [
-        {"productId": "p1", "name": "Product 1", "url": "url1", "v1": "v1a"}
-    ]
+    assert p.get_products_by_chat_id("chat2")[0]["selectedSizes"] == ["M"]
 
 
 def test_remove_product(monkeypatch):
@@ -185,12 +202,21 @@ def test_remove_product(monkeypatch):
     p.add_subscription("chat1", prod2)
 
     p.remove_product("chat1", "url1")
-    assert store["subscriptions"] == [("chat1", 2)]
+    assert store["subscriptions"] == [{"chat_id": "chat1", "product_id": 2, "selected_sizes": None}]
     assert p.get_urls_by_chat_id("chat1") == ["url2"]
 
     # Removing non-existent entry should be a no-op
     p.remove_product("chat1", "url3")
-    assert store["subscriptions"] == [("chat1", 2)]
+    assert store["subscriptions"] == [{"chat_id": "chat1", "product_id": 2, "selected_sizes": None}]
+
+
+def test_get_selected_sizes(monkeypatch):
+    setup_fake_db(monkeypatch)
+    p = persist.Persist(database_url="postgresql://fake")
+
+    p.add_subscription("chat1", make_product("p1", "Product 1", "url1", "v1a"), selected_sizes=["L", "XL"])
+
+    assert p.get_selected_sizes("chat1", "url1") == ["L", "XL"]
 
 
 def test_user_exist(monkeypatch):

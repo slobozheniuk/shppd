@@ -12,7 +12,8 @@ def get_product(product: str, v1: str) -> Product:
     productId: int = product_json['product']['detail']['colors'][0]['productId']
     sizes: dict[str, int] = {}
     for size in product_json['product']['detail']['colors'][0]['sizes']:
-        sizes[size['sku']] = size['name']
+        # Normalize SKU keys as ints so they match availability payloads.
+        sizes[int(size['sku'])] = size['name']
     return Product(url, productId, name, sizes, v1)
 
 def get_product_json(url: str) -> Any:
@@ -179,7 +180,8 @@ def get_stock(productId: int) -> List[Tuple[int, bool]]:
     if response.status_code == 200:
         result = json.loads(response.text)
         for size in result['skusAvailability']:
-            res.append((size['sku'], size['availability'] == 'in_stock'))
+            # Normalize SKU as int to match get_product().
+            res.append((int(size['sku']), size['availability'] == 'in_stock'))
         return res
     else:
         raise Exception(response.content)  
