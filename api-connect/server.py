@@ -80,9 +80,9 @@ def follow_item(chat_id):
         logging.info(f'Subscribing to {url} for sizes {sizes_to_track}')
         tracker.subscribe(chat_id, product.url, sizes_to_track)
         return 'Success', 200
-    except Exception:
-        logging.error(f'Item not found with URL {url}')
-        return 'Not found', 200
+    except Exception as exc:
+        logging.exception(f'Item not found with URL {url}')
+        return {'error': 'Not found', 'details': str(exc)}, 200
 
 # Run the app if the script is executed
 if __name__ == '__main__':
