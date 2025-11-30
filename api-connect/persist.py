@@ -58,6 +58,22 @@ class Persist:
                     );
                     """
                 )
+                # Add column if upgrading an existing DB.
+                cur.execute(
+                    """
+                    DO $$
+                    BEGIN
+                        IF NOT EXISTS (
+                            SELECT 1
+                            FROM information_schema.columns
+                            WHERE table_name = 'subscriptions'
+                              AND column_name = 'selected_sizes'
+                        ) THEN
+                            ALTER TABLE subscriptions ADD COLUMN selected_sizes TEXT[];
+                        END IF;
+                    END$$;
+                    """
+                )
             conn.commit()
         logger.info("Ensured users, products, subscriptions tables exist")
 
